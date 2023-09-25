@@ -1,0 +1,28 @@
+---
+- name: Configure AD env
+  hosts: scranton-dc
+  gather_facts: no
+
+  tasks:
+    - name: Create user accounts
+      win_shell: |
+        New-ADUser -Name "Kevin Malone" -SamAccountName "k.malone" -UserPrincipalName "k.malone@scranton.dunder-mifflin.local" -GivenName "Kevin" -Surname "Malone" -AccountPassword (ConvertTo-SecureString 'Summer23' -AsPlainText -Force) -Enabled $true -Path "CN=Users,DC=dunder-mifflin,DC=local"
+
+        New-ADUser -Name "Jim Halpert" -SamAccountName "j.halpert" -UserPrincipalName "j.halpert@scranton.dunder-mifflin.local" -GivenName "Jim" -Surname "Halpert" -AccountPassword (ConvertTo-SecureString 'Password123#' -AsPlainText -Force) -Enabled $true -Path "CN=Users,DC=dunder-mifflin,DC=local"
+
+        New-ADUser -Name "Dwight Schrute" -SamAccountName "d.schrute" -UserPrincipalName "d.schrute@scranton.dunder-mifflin.local" -GivenName "Dwight" -Surname "Schrute" -AccountPassword (ConvertTo-SecureString 'nV(w6)jApwAW^)' -AsPlainText -Force) -Enabled $true -Path "CN=Users,DC=dunder-mifflin,DC=local"
+
+    - name: Configure ASREProasting
+      win_shell: |
+        $userDN = "CN=Kevin Malone,CN=Users,DC=dunder-mifflin,DC=local"
+        $currentFlags = (Get-ADUser $userDN -Properties userAccountControl).userAccountControl
+        $newFlags = $currentFlags -bor 0x400000
+        Set-ADUser -Identity $userDN -Replace @{userAccountControl=$newFlags}
+
+    - name: Enable winrm
+      win_shell: |
+        net localgroup "Remote Management Users" /add dunder-mifflin\d.schrute
+
+    - name: Configure Kerberoasting
+      win_shell: |
+        setspn -a dunder-mifflin.local/j.halpert.dunder-mifflin.local:60111 dunder-mifflin\j.halpert

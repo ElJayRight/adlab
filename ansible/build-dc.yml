@@ -1,0 +1,60 @@
+---
+# Create domain controller
+- name: Set up Corp-DC
+  hosts: scranton-dc
+
+  tasks:
+    - name: "Change the hostname"
+      win_hostname:
+        name: "scranton-dc"
+
+    - name: Reboot if needed
+      win_reboot:
+        reboot_timeout: 600
+        post_reboot_delay: 30
+    
+    - name: Install Domain Services
+      win_shell: |
+        Add-WindowsFeature AD-Domain-Services -IncludeManagementTools
+        Install-ADDSForest -DomainName "dunder-mifflin.local" -DomainNetbiosName "DUNDER-MIFFLIN" -InstallDNS -Force -SafeModeAdministratorPassword (ConvertTo-SecureString "Password123#" -AsPlainText -Force) -NoRebootOnCompletion -ForestMode "WinThreshold"
+    
+    - name: Reboot if needed
+      win_reboot:
+        reboot_timeout: 600
+        post_reboot_delay: 30
+
+    - name: Add domain admin
+      win_shell: |
+        Import-Module ActiveDirectory
+        New-ADUser -Name "Micheal Scott" -SamAccountName "m.scott" -UserPrincipalName "m.scott@dunder-mifflin.local" -GivenName "Micheal" -Surname "Scott" -AccountPassword (ConvertTo-SecureString 'ykpB@7@$DUQ8G-Ag' -AsPlainText -Force) -Enabled $true -Path "CN=Users,DC=dunder-mifflin,DC=local"
+        Add-ADGroupMember -Identity "Domain Admins" -Members "m.scott"
+
+# Add computers to the domain.
+- name: Join Computers to domain
+  hosts: workstations
+  gather_facts: no
+  tasks:
+    
+    - name: "Change the hostname"
+      win_hostname:
+        name: "{{ host }}"
+   
+    - name: DNS
+      win_shell: |
+        Set-DNSClientServerAddress -InterfaceIndex (Get-Netadapter | where-object { $_.Name -like "Eth*" }).InterfaceIndex.tostring() -ServerAddresses 192.168.21.174
+    
+    - name: Reboot if needed
+      win_reboot:
+        reboot_timeout: 600
+        post_reboot_delay: 30
+
+    - name: Add computer to AD
+      win_shell: |
+        $password = ConvertTo-SecureString 'ykpB@7@$DUQ8G-Ag' -AsPlainText -Force
+        $credential = New-Object System.Management.Automation.PSCredential ('dunder-mifflin.local\m.scott', $password)
+        Add-Computer -DomainName "dunder-mifflin.local" -Credential $credential
+
+    - name: Reboot if needed
+      win_reboot:
+        reboot_timeout: 600
+        post_reboot_delay: 30
